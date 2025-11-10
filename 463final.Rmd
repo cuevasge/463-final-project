@@ -1,0 +1,31 @@
+---
+title: "Final Project"
+author: "Gabriela Cuevas & Max Baumstark"
+date: "2025-11-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+
+# LAB-1 Demo is copied over with some improvements 
+library(readxl)   # to read Excel files
+library(dplyr)    # for data cleaning
+library(janitor)  # to clean column names
+library(tidyverse)
+library(gridExtra)
+
+
+setwd("/Users/gabrielacuevas/Desktop/STA 463/FinalProject")
+dat = read.csv("ocean-climate-data.csv",header=T)
+
+head(dat)
+tail(dat)
+
+dim(dat)
+```
+
