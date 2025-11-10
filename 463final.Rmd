@@ -4,11 +4,12 @@ author: "Gabriela Cuevas & Max Baumstark"
 date: "2025-11-10"
 output: html_document
 ---
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+# Introduction
 
+### Data Cleaning and Filtering
 ```{r}
 rm(list = ls())
 
@@ -20,7 +21,7 @@ library(gridExtra)
 
 
 setwd("/Users/gabrielacuevas/Desktop/STA 463/FinalProject")
-dat = read.csv("ocean-climate-data.csv",header=T)
+dat = read.csv("ocean.csv",header=T)
 
 head(dat)
 tail(dat)
@@ -45,9 +46,29 @@ GBR_dat <- clean_dat %>%
    filter(Location == "Great Barrier Reef")
 head(GBR_dat)
 ```
-
+## Fitting a Multiple Regression Model
 ```{r}
 
 ```
+
+
+## Check Model Assumptions
+```{r}
+
+```
+
+
+## Model Diagnostics
+```{r}
+
+```
+
+
+## Model Selection (anova partial F test)
+```{r}
+
+```
+
+# Discussion and Story
 
 
