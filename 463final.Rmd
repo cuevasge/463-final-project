@@ -18,7 +18,9 @@ library(dplyr)    # for data cleaning
 library(janitor)  # to clean column names
 library(tidyverse)
 library(gridExtra)
-
+library(zoo)
+library(lmtest)
+library(nortest)
 
 setwd("/Users/gabrielacuevas/Desktop/STA 463/FinalProject")
 dat = read.csv("ocean.csv",header=T)
@@ -46,27 +48,42 @@ GBR_dat <- clean_dat %>%
    filter(Location == "Great Barrier Reef")
 head(GBR_dat)
 ```
+### Create Dummy for Bleach Level
+```{r}
+GBR_dat$highBleach <- ifelse(GBR_dat$bleachLevel == "High", 1, 0)
+GBR_dat$mediumBleach <- ifelse(GBR_dat$bleachLevel == "Medium", 1, 0)
+GBR_dat$lowBleach <- ifelse(GBR_dat$bleachLevel == "Low", 1, 0)
+
+
+head(GBR_dat)
+tail(GBR_dat)
+```
+
+
 ## Fitting a Multiple Regression Model
 ```{r}
+lm_ocean_full <- lm(species ~ temperature + pH + highBleach + mediumBleach + lowBleach, data = GBR_dat)
+summary(lm_ocean_full)
 
+lm_ocean_reduced <- lm(species ~ temperature, data = GBR_dat)
+summary(lm_ocean_reduced)
 ```
 
 
-## Check Model Assumptions
+## Check Model Assumptions + Diagnostics
 ```{r}
 
 ```
 
 
-## Model Diagnostics
 ```{r}
-
+bptest()
 ```
 
 
 ## Model Selection (anova partial F test)
 ```{r}
-
+anova(lm_ocean_full, lm_ocean_reduced)
 ```
 
 # Discussion and Story
