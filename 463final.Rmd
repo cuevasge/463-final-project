@@ -21,6 +21,8 @@ library(gridExtra)
 library(zoo)
 library(lmtest)
 library(nortest)
+library(car)
+library(ggplot2)
 
 setwd("/Users/gabrielacuevas/Desktop/STA 463/FinalProject")
 dat = read.csv("ocean.csv",header=T)
@@ -72,14 +74,111 @@ summary(lm_ocean_reduced)
 
 ## Check Model Assumptions + Diagnostics
 ```{r}
+GBR_dat$fit_full <- fitted(lm_ocean_full)
+GBR_dat$fit_red <- fitted(lm_ocean_reduced)
 
+p1 <- ggplot(GBR_dat, aes(x = species, y = fit_full)) +
+geom_point(color = "steelblue") +
+geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+labs(
+title = "Full Model: Fitted vs Actual",
+x = "Actual num of species",
+y = "Fitted num of species"
+) +
+theme_minimal()
+
+p2 <- ggplot(GBR_dat, aes(x = species, y = fit_red)) +
+geom_point(color = "darkorange") +
+geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+labs(
+title = "Reduced Model: Fitted vs Actual",
+x = "Actual num of species",
+y = "Fitted num of species"
+) +
+theme_minimal()
+
+grid.arrange(p1, p2, ncol = 2)
 ```
 
 
 ```{r}
-bptest()
+par(mfrow = c(2, 2))
+plot(lm_ocean_full)
+par(mfrow = c(1, 1))
+
+```
+```{r}
+shapiro.test(residuals(lm_ocean_full))
+```
+```{r}
+par(mfrow = c(2, 2))
+plot(lm_ocean_reduced)
+par(mfrow = c(1, 1))
 ```
 
+```{r}
+shapiro.test(residuals(lm_ocean_reduced))
+```
+Check homoscedasticity
+
+```{r}
+plot(fitted(lm_ocean_full), residuals(lm_ocean_full),
+main = "Residuals vs Fitted (Homoscedasticity Check)",
+xlab = "Fitted Values", ylab = "Residuals", pch = 19, col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+```{r}
+plot(fitted(lm_ocean_reduced), residuals(lm_ocean_reduced),
+main = "Residuals vs Fitted (Homoscedasticity Check)",
+xlab = "Fitted Values", ylab = "Residuals", pch = 19, col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+Check influential points
+
+```{r}
+influencePlot(lm_ocean_full)
+
+```
+
+```{r}
+influencePlot(lm_ocean_reduced)
+```
+
+Cook's distance
+```{r}
+plot(cooks.distance(lm_ocean_full), type = "h",
+main = "Cook's Distance (Influential Points)",
+ylab = "Cook's Distance", col = "darkred")
+```
+
+```{r}
+plot(cooks.distance(lm_ocean_reduced), type = "h",
+main = "Cook's Distance (Influential Points)",
+ylab = "Cook's Distance", col = "darkred")
+```
+
+
+Leverage vs standardized residuals
+
+```{r}
+plot(lm_ocean_full, which = 5)
+```
+
+```{r}
+plot(lm_ocean_reduced, which = 5)
+```
+
+Compare AIC and Adjusted R²
+
+```{r}
+data.frame(
+Model = c("Reduced", "Full"),
+Adj_R2 = c(summary(lm_ocean_reduced)$adj.r.squared, summary(lm_ocean_full)$adj.r.squared),
+AIC = c(AIC(lm_ocean_reduced), AIC(lm_ocean_full))
+)
+```
 
 ## Model Selection (anova partial F test)
 ```{r}
