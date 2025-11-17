@@ -195,6 +195,12 @@ ad.test(lm_ocean_reduced$residuals)
 ```{r}
 rstandard(lm_ocean_full)
 ```
+## Multicollinearity test
+```{r}
+library(car)
+vif(lm_ocean_full)
+
+```
 
 
 ## Model Selection (anova partial F test)
