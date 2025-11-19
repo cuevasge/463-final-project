@@ -61,6 +61,26 @@ head(GBR_dat)
 tail(GBR_dat)
 ```
 
+## Plot Temp against Number of Species
+```{r}
+temp <- ggplot(GBR_dat, aes(x = temperature, y = species)) +
+  geom_point(size = 3) +  # dots
+  geom_smooth(method = "lm", se = FALSE, color = "red") +  # linear regression line
+  labs(
+    title = "Number of Species by Temperature for the Great Barrier Reef",
+    x = "Temperature",
+    y = "Number of Species"
+  ) +
+  ylim(0, 170) +
+  scale_x_continuous(breaks = seq(min(GBR_dat$temperature), max(GBR_dat$temperature), by = 1))+
+  theme_minimal()
+temp
+```
+## Visualize all predictors
+```{r}
+avPlots(lm_ocean_full)
+```
+
 
 ## Fitting a Multiple Regression Model
 ```{r}
@@ -71,7 +91,6 @@ lm_ocean_reduced <- lm(species ~ temperature, data = GBR_dat)
 summary(lm_ocean_reduced)
 
 ```
-
 
 ## Check Model Assumptions + Diagnostics
 ```{r}
