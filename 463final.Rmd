@@ -23,6 +23,7 @@ library(lmtest)
 library(nortest)
 library(car)
 library(ggplot2)
+library(caret)
 
 setwd("/Users/gabrielacuevas/Desktop/STA 463/FinalProject")
 dat = read.csv("ocean.csv",header=T)
@@ -84,13 +85,6 @@ temp
 ```{r}
 lm_ocean_full <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
 summary(lm_ocean_full)
-
-lm_ocean_long <- lm(species ~ temperature + Longitude, data = GBR_dat)
-summary(lm_ocean_long)
-
-lm_ocean_reduced <- lm(species ~ temperature, data = GBR_dat)
-summary(lm_ocean_reduced)
-
 ```
 
 ## Visualize all predictors
@@ -140,15 +134,11 @@ shapiro.test(residuals(lm_ocean_full))
 ```
 ```{r}
 par(mfrow = c(2, 2))
-plot(lm_ocean_reduced)
-par(mfrow = c(1, 1))
+plot(lm_ocean_full)
+
 ```
 
-```{r}
-shapiro.test(residuals(lm_ocean_reduced))
-```
-Check homoscedasticity
-
+# Check Homoscedasticity
 ```{r}
 plot(fitted(lm_ocean_full), residuals(lm_ocean_full),
 main = "Residuals vs Fitted (Homoscedasticity Check)",
@@ -156,18 +146,10 @@ xlab = "Fitted Values", ylab = "Residuals", pch = 19, col = "blue")
 abline(h = 0, col = "red", lwd = 2)
 ```
 
-```{r}
-plot(fitted(lm_ocean_reduced), residuals(lm_ocean_reduced),
-main = "Residuals vs Fitted (Homoscedasticity Check)",
-xlab = "Fitted Values", ylab = "Residuals", pch = 19, col = "blue")
-abline(h = 0, col = "red", lwd = 2)
-```
 
-Check influential points
-
+## Check influential points
 ```{r}
 influencePlot(lm_ocean_full)
-
 ```
 ## Check 42, 62, 28, 61
 ```{r}
@@ -186,25 +168,6 @@ comparison <- data.frame(Full_Model = coef_full, Filtered_Model = coef_filtered)
 print(comparison)
 ```
 
-```{r}
-influencePlot(lm_ocean_reduced)
-```
-```{r}
-influential_indices <- c(32, 28, 37, 62)
-GBR_reduced_filtered <- GBR_dat[-influential_indices, ]
-lm_red_ocean_filtered <- lm(species ~ temperature, data = GBR_filtered)
-summary(lm_ocean_full)
-summary(lm_ocean_filtered)
-```
-
-```{r}
-coef_full <- coef(lm_ocean_full)
-coef_filtered <- coef(lm_ocean_filtered)
-comparison <- data.frame(Full_Model = coef_full, Filtered_Model = coef_filtered)
-print(comparison)
-```
-
-
 
 Cook's distance
 ```{r}
@@ -214,24 +177,39 @@ ylab = "Cook's Distance", col = "darkred")
 ##how many SD's away from regression model
 ```
 
-```{r}
-plot(cooks.distance(lm_ocean_reduced), type = "h",
-main = "Cook's Distance (Influential Points)",
-ylab = "Cook's Distance", col = "darkred")
-```
-
-Leverage vs standardized residuals
+## Leverage vs Standardized Residuals
 
 ```{r}
 plot(lm_ocean_full, which = 5)
 ```
 
+# Model Selection
 ```{r}
-plot(lm_ocean_reduced, which = 5)
+# Null model (only intercept)
+null_model <- lm(species ~ 1, data = GBR_dat)
+
+# Forward selection
+forward_model <- step(null_model, 
+                      scope = list(lower = null_model, upper = lm_ocean_full),
+                      direction = "forward")
+summary(forward_model)
+
+# Backward elimination
+backward_model <- step(lm_ocean_full, direction = "backward")
+summary(backward_model)
+
+# Stepwise selection (both directions)
+stepwise_model <- step(null_model, 
+                       scope = list(lower = null_model, upper = lm_ocean_full),
+                       direction = "both")
+summary(stepwise_model)
+```
+```{r}
+lm_ocean_reduced <- lm(species ~ temperature + Longitude, data = GBR_dat)
 ```
 
-Compare AIC and Adjusted R²
 
+## Compare AIC and Adjusted R²
 ```{r}
 data.frame(
 Model = c("Reduced", "Full"),
@@ -242,13 +220,11 @@ AIC = c(AIC(lm_ocean_reduced), AIC(lm_ocean_full))
 
 bpTest
 ```{r}
-bptest(lm_ocean_reduced)
 bptest(lm_ocean_full)
 ```
 
 ```{r}
 ad.test(lm_ocean_full$residuals) 
-ad.test(lm_ocean_reduced$residuals) 
 ```
 
 ```{r}
@@ -258,7 +234,6 @@ rstandard(lm_ocean_full)
 ```{r}
 library(car)
 vif(lm_ocean_full)
-
 ```
 ##Cross- Validation
 ```{r}
@@ -279,36 +254,10 @@ cv_model <- train(
 
 cv_model
 ```
-```{r}
-
-
-# Null model (only intercept)
-null_model <- lm(species ~ 1, data = GBR_dat)
-
-# Forward selection
-forward_model <- step(null_model, 
-                      scope = list(lower = null_model, upper = lm_ocean_full),
-                      direction = "forward")
-summary(forward_model)
-
-# Backward elimination
-backward_model <- step(lm_ocean_full, direction = "backward")
-summary(backward_model)
-
-# Stepwise selection (both directions)
-stepwise_model <- step(null_model, 
-                       scope = list(lower = null_model, upper = lm_ocean_full),
-                       direction = "both")
-summary(stepwise_model)
-
-```
-
-
 
 ## Model Selection (anova partial F test)
 ```{r}
 anova(lm_ocean_full, lm_ocean_reduced)
-anova(lm_ocean_full, lm_ocean_long)
 ```
 
 # Discussion and Story
