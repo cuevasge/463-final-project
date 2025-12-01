@@ -8,7 +8,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 # Introduction
-
+In this report, we will investigate how environmental factors such as ocean temperature, pH level, bleaching level, latitude, and longitude impact marine biodiversity. Our data is assembled from various climate organization research (NOAA, GODAP, OBIS) assembled for the purpose of finding climate trends and creating future predictions. We will perform model diagnostics and multiple regression to determine which factors are most significant. 
 ### Data Cleaning and Filtering
 ```{r}
 rm(list = ls())
@@ -34,8 +34,8 @@ dim(dat)
 ```
 
 ```{r}
-clean_dat <- dat %>%
-   select (-Marine.Heatwave) %>%  # remove 2 columns
+clean_dat <- dat %>% 
+  select (-Marine.Heatwave) %>%  # remove 2 columns
    rename(
      temperature = SST,
      pH = pH.Level,
@@ -48,14 +48,18 @@ clean_dat$species <- as.integer(clean_dat$species)
 # filter for Great Barrier Reef
 GBR_dat <- clean_dat %>%
    filter(Location == "Great Barrier Reef")
+
+
 head(GBR_dat)
+
 ```
 ### Create Dummy for Bleach Level
 ```{r}
 GBR_dat$highBleach <- ifelse(GBR_dat$bleachLevel == "High", 1, 0)
 GBR_dat$mediumBleach <- ifelse(GBR_dat$bleachLevel == "Medium", 1, 0)
 GBR_dat$lowBleach <- ifelse(GBR_dat$bleachLevel == "Low", 1, 0)
-
+GBR_dat <- GBR_dat %>% 
+  select (-bleachLevel)
 
 head(GBR_dat)
 tail(GBR_dat)
@@ -76,23 +80,27 @@ temp <- ggplot(GBR_dat, aes(x = temperature, y = species)) +
   theme_minimal()
 temp
 ```
-## Visualize all predictors
-```{r}
-avPlots(lm_ocean_full)
-```
-
-
 ## Fitting a Multiple Regression Model
 ```{r}
 lm_ocean_full <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
 summary(lm_ocean_full)
+
+lm_ocean_long <- lm(species ~ temperature + Longitude, data = GBR_dat)
+summary(lm_ocean_long)
 
 lm_ocean_reduced <- lm(species ~ temperature, data = GBR_dat)
 summary(lm_ocean_reduced)
 
 ```
 
-## Check Model Assumptions + Diagnostics
+## Visualize all predictors
+```{r}
+avPlots(lm_ocean_full)
+```
+From these added variable plots, we can see that the only predictor besides temperature that has a notable relationship with the number of species is longitude. In that plot, there is a slight positive correlation between number of species and longitude. This tells us that there is higher biodiversity in the southern parts of the Great Barrier Reef. This graph also highlights 62, 42, and 32 as outliers, which matches up with our cook's distance plot.
+
+
+## Check Model Assumptions
 ```{r}
 GBR_dat$fit_full <- fitted(lm_ocean_full)
 GBR_dat$fit_red <- fitted(lm_ocean_reduced)
@@ -161,10 +169,42 @@ Check influential points
 influencePlot(lm_ocean_full)
 
 ```
+## Check 42, 62, 28, 61
+```{r}
+influential_indices <- c(42, 61, 62, 28)
+GBR_filtered <- GBR_dat[-influential_indices, ]
+lm_ocean_filtered <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_filtered)
+summary(lm_ocean_full)
+summary(lm_ocean_filtered)
+```
+when the influential points are removed from the model, longitude is much more significant
+
+```{r}
+coef_full <- coef(lm_ocean_full)
+coef_filtered <- coef(lm_ocean_filtered)
+comparison <- data.frame(Full_Model = coef_full, Filtered_Model = coef_filtered)
+print(comparison)
+```
 
 ```{r}
 influencePlot(lm_ocean_reduced)
 ```
+```{r}
+influential_indices <- c(32, 28, 37, 62)
+GBR_reduced_filtered <- GBR_dat[-influential_indices, ]
+lm_red_ocean_filtered <- lm(species ~ temperature, data = GBR_filtered)
+summary(lm_ocean_full)
+summary(lm_ocean_filtered)
+```
+
+```{r}
+coef_full <- coef(lm_ocean_full)
+coef_filtered <- coef(lm_ocean_filtered)
+comparison <- data.frame(Full_Model = coef_full, Filtered_Model = coef_filtered)
+print(comparison)
+```
+
+
 
 Cook's distance
 ```{r}
@@ -220,11 +260,55 @@ library(car)
 vif(lm_ocean_full)
 
 ```
+##Cross- Validation
+```{r}
+train_control <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = "final"
+)
+
+# Train the model using 5-fold CV
+cv_model <- train(
+  species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach,
+  data = GBR_dat,
+  method = "lm",
+  trControl = train_control,
+  metric = "RMSE"
+)
+
+cv_model
+```
+```{r}
+
+
+# Null model (only intercept)
+null_model <- lm(species ~ 1, data = GBR_dat)
+
+# Forward selection
+forward_model <- step(null_model, 
+                      scope = list(lower = null_model, upper = lm_ocean_full),
+                      direction = "forward")
+summary(forward_model)
+
+# Backward elimination
+backward_model <- step(lm_ocean_full, direction = "backward")
+summary(backward_model)
+
+# Stepwise selection (both directions)
+stepwise_model <- step(null_model, 
+                       scope = list(lower = null_model, upper = lm_ocean_full),
+                       direction = "both")
+summary(stepwise_model)
+
+```
+
 
 
 ## Model Selection (anova partial F test)
 ```{r}
 anova(lm_ocean_full, lm_ocean_reduced)
+anova(lm_ocean_full, lm_ocean_long)
 ```
 
 # Discussion and Story
