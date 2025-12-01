@@ -151,7 +151,7 @@ abline(h = 0, col = "red", lwd = 2)
 ```{r}
 influencePlot(lm_ocean_full)
 ```
-## Check 42, 62, 28, 61
+## Outliers: Check 42, 62, 28, 61
 ```{r}
 influential_indices <- c(42, 61, 62, 28)
 GBR_filtered <- GBR_dat[-influential_indices, ]
@@ -159,7 +159,7 @@ lm_ocean_filtered <- lm(species ~ temperature + pH + Latitude + Longitude + high
 summary(lm_ocean_full)
 summary(lm_ocean_filtered)
 ```
-when the influential points are removed from the model, longitude is much more significant
+When the influential points are removed from the model, longitude is much more significant
 
 ```{r}
 coef_full <- coef(lm_ocean_full)
@@ -178,7 +178,6 @@ ylab = "Cook's Distance", col = "darkred")
 ```
 
 ## Leverage vs Standardized Residuals
-
 ```{r}
 plot(lm_ocean_full, which = 5)
 ```
@@ -224,7 +223,7 @@ bptest(lm_ocean_full)
 ```
 
 ```{r}
-ad.test(lm_ocean_full$residuals) 
+ad.test(lm_ocean_full$residuals)  
 ```
 
 ```{r}
@@ -261,5 +260,12 @@ anova(lm_ocean_full, lm_ocean_reduced)
 ```
 
 # Discussion and Story
+investigating location
+from our study, a simple linear regression model would represent our data in the same way
+at which point does our model predict 0 biodiversity?
+(tipping point)
+gabi will look something up about impacts of biodiversity and maybe give a number of where we need to turn it around by
 
+mitigation and next steps
+aka what can each person do to prevent sea surface temperature rise
 
