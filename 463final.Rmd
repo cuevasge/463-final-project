@@ -7,15 +7,20 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
 # Introduction
-In this report, we will investigate how environmental factors such as ocean temperature, pH level, bleaching level, latitude, and longitude impact marine biodiversity. Our data is assembled from various climate organization research (NOAA, GODAP, OBIS) assembled for the purpose of finding climate trends and creating future predictions. We will perform model diagnostics and multiple regression to determine which factors are most significant. 
+
+In this report, we will investigate how environmental factors such as ocean temperature, pH level, bleaching level, latitude, and longitude impact marine biodiversity. Our data is assembled from various climate organization research (NOAA, GODAP, OBIS) assembled for the purpose of finding climate trends and creating future predictions. We will perform model diagnostics and multiple regression to determine which factors are most significant.
+
+# Data
+
 ### Data Cleaning and Filtering
-```{r}
+```{r, warning=FALSE, message=FALSE}
 rm(list = ls())
 
-library(readxl)   # to read Excel files
-library(dplyr)    # for data cleaning
-library(janitor)  # to clean column names
+library(readxl)
+library(dplyr)
+library(janitor)
 library(tidyverse)
 library(gridExtra)
 library(zoo)
@@ -29,13 +34,17 @@ setwd("/Users/gabrielacuevas/Desktop/STA 463/FinalProject")
 dat = read.csv("ocean.csv",header=T)
 
 head(dat)
-tail(dat)
-
 dim(dat)
 ```
 
+Before cleaning our data, we have exactly 500 observations observed over many different locations across the globe.
+
+To better understand our dataset, we want to specifically look at the Great Barrier Reef.
+
+Also, we are going to rename the SST column to temperature, eliminate the marine heatwave predictor, and eliminate any null observations.
+
 ```{r}
-clean_dat <- dat %>% 
+clean_dat <- dat %>%
   select (-Marine.Heatwave) %>%  # remove 2 columns
    rename(
      temperature = SST,
@@ -52,21 +61,246 @@ GBR_dat <- clean_dat %>%
 
 
 head(GBR_dat)
-
+dim(GBR_dat)
 ```
-### Create Dummy for Bleach Level
+
+After cleaning the data, there are 87 observations pertaining to our geographic region of interest, The Great Barrier Reef.
+
+Now, we have to create dummy variables in order to indicate the severity of the bleaching level in the Great Barrier Reef.
+
+### Creating Dummy for Bleach Level
+
 ```{r}
 GBR_dat$highBleach <- ifelse(GBR_dat$bleachLevel == "High", 1, 0)
 GBR_dat$mediumBleach <- ifelse(GBR_dat$bleachLevel == "Medium", 1, 0)
 GBR_dat$lowBleach <- ifelse(GBR_dat$bleachLevel == "Low", 1, 0)
-GBR_dat <- GBR_dat %>% 
+GBR_dat <- GBR_dat %>%
   select (-bleachLevel)
 
 head(GBR_dat)
-tail(GBR_dat)
 ```
 
-## Plot Temp against Number of Species
+After the data has been cleaned, we are able to move on to the methods of our project.
+
+# Methods
+
+## Fitting a Multiple Regression Model
+
+```{r}
+lm_ocean_full <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
+summary(lm_ocean_full)
+```
+
+Our initial summary indicates that temperature is the only significant predictor (as it is the only predictor value below any reasonable significance level). The other predictor that has a relatively low p-value is longitude, but we will take a closer look into the significant predictors in the future.
+
+Multiple R-Squared: 0.4895
+
+Adjusted R-Squared: 0.0443
+
+### *Full Model Coefficients:*
+
+Intercept = -5570.5744
+
+Temperature = -9.7432
+
+pH = -10.1908
+
+Latitude = 16.3202
+
+Longitude = 43.0045
+
+highBleach = 0.2286
+
+mediumBleach = -2.6331
+
+lowBleach = -2.0113
+
+## *Observations:*
+
+The R-Squared values suggest that there is a moderate correlation between the predictors and and the number of species in the GBR. There is also a difference of about 0.045 between the R-Squared and the Adjusted R-Squared, suggesting a strong penalty induced by including so many predictors.
+
+The intercept coefficient is not meaningful. There is no case in which there will be a negative number of species in the the GBR.
+
+Next, let's make sure no model assumptions are being violated, and make any transformations if needed.
+
+## Assumptions & Diagnostics
+
+First, we are going to make a visual representation of the predicted vs. observed values.
+
+```{r}
+GBR_dat$fit_full <- fitted(lm_ocean_full)
+
+p1 <- ggplot(GBR_dat, aes(x = species, y = fit_full)) +
+geom_point(color = "steelblue") +
+geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+labs(
+title = "Full Model: Fitted vs Actual",
+x = "Actual num of species",
+y = "Fitted num of species"
+) +
+theme_minimal()
+p1
+```
+
+There aren't any glaring obscurities when it comes to observed values deviating from the predicted values, so we can move into checking individual assumptions.
+
+
+```{r}
+par(mfrow = c(2, 2))
+plot(lm_ocean_full)
+```
+
+#### *Linearity:*
+
+The linearity assumptions does not appear to be violated as the vertical scatter of points in the residuals vs. fitted plot seems to be random scattered around zero.
+
+#### *Independence of Errors:*
+
+Each observation was collected on a different date and represents a separate measurement from an independent subject/time point, making it unlikely that the measurement from one day influenced the next.
+
+#### *Constant Variance:*
+
+On the Scale-Location plot, we can see that on the tails, there is moderate variation from the horizontal line in the center, but nothing too serious. We will keep this in mind when completing the Breusch-Pagan test.
+
+```{r}
+bptest(lm_ocean_full)
+```
+
+p-value: 0.6933
+
+Since the p-value is greater than any reasonable significance level, we can conclude that the constant variance assumption remains intact.
+
+We can also look at a box-cox plot to determine whether there is a need for any transformations on the full model.
+
+```{r}
+boxCox(lm_ocean_full)
+```
+
+Since the lambda value is between 0 and 1, we should keep our model for ease of interpretation instead of using a log transformation.
+
+#### *Normality:*
+
+Looking at the Q-Q Plot above, there is slight variation at the tails of the plot, and these observations are designated as possible influential points. This is something to keep in mind when we check for influential points later on. Next, we can conduct a Shapiro-Wilk test for normality.
+
+```{r}
+shapiro.test(residuals(lm_ocean_full))
+```
+
+The Shapiro-Wilk test indicates that the residuals deviate from normality. We can also perform the Anderson-Darling test for Normality.
+
+```{r}
+ad.test(lm_ocean_full$residuals)  
+```
+
+The Anderson-Darling normality test suggests that the normality assumption is not being violated. Since we have conflicting tests, we should check for influential points now so we can determine if these are what is causing the lack of normality.
+
+#### *Removing Outliers?*
+
+Residuals vs Leverage
+```{r}
+plot(lm_ocean_full, which = 4)  
+plot(lm_ocean_full, which = 6)  
+```
+
+The Cook's Distance plot suggests that observations 28, 62, and 66 are highly influential points.
+
+```{r}
+influencePlot(lm_ocean_full)
+```
+
+The Cook's Distance bubble plot suggests that observations 26, 28, 42, 61, and 62
+
+We can look into the hat values of every value.
+
+```{r}
+lev <- hatvalues(lm_ocean_full)
+lev
+lev[lev > (2*(7+1)/87)]
+```
+
+The hat value test suggests that no values differ too greatly as influential points.
+
+Studentized Residuals will be the next thing we to look into.
+
+```{r}
+r <- rstudent(lm_ocean_full)
+r
+```
+
+The observations with the largest studentized residual values: 8, 28, 42, 62, and 66. 
+
+All of these observations have studentized residual values above 2, flagging them as possible outliers.
+
+After running these tests, there are no points that are suggested as outliers throughout each test, and no points that show extreme values when it comes to individual test results. Therefore, removal of any observation is not necessary in this case, but it will be a good idea to look into different transformations.
+
+So, our influential points assumption holds, and we can look back to our normality assumption.
+
+#### *Normality re-check*
+
+Since we have verified our influential observation assumption is not violated, we can determine that the normality assumption is also in check. After some investigations, the BP test returning significant is likely due to the moderately influential points discussed above. However, with large sample sizes, this test often comes back as significant if there are even slightly influential predictors.
+
+The more important test for normality is the Normal Q-Q Plot, which suggests that the normality assumption is met. The next assumption to be checked is the existence of multicollinearity.
+
+#### *Multicollinearity*
+
+```{r}
+vif(lm_ocean_full)
+```
+
+All of our predictors have a VIF value below 1.5, which suggests no existence of multicollinearity.
+
+#### *No Important Predictors Omitted:*
+
+****************Fill*****************
+
+#### *Possible Lack-of-Fit:*
+
+The lack-of-fit assumption was evaluated using the Residuals vs. Fitted plot. The residuals showed no systematic patterns or curvature, indicating that a linear model provides an adequate description of the relationships in the data.
+
+Since the dataset does not contain replicated predictor values, a formal lack-of-fit test could not be performed. Overall, there is no visual evidence of lack of fit, and the linear model form appears appropriate.
+
+#### *What if we removed the influential observations?*
+
+While we decided not to remove the influential points in this project, it is still a good idea to get an idea of what the rest of the data looks like without the outliers. Below, we have removed the five most influential points, and completed an analysis on what was left.
+
+```{r}
+influential_indices <- c(28, 42, 61, 62, 66)
+GBR_filtered <- GBR_dat[-influential_indices, ]
+lm_ocean_filtered <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_filtered)
+summary(lm_ocean_full)
+summary(lm_ocean_filtered)
+```
+
+When the influential points are removed from the model, longitude is much more significant. This suggests that the further south one travels down the GBR, the greater the number of species will be.
+
+Also, the predictors explain much more of the data as the Adjusted R-Squared bumps up from 0.44 to 0.55. This is a significant increase in the performance of the model.
+
+One my wonder, if the model fits better, why would we not simply remove the data points?
+
+In regression, we want to avoid 'choosing' what data to include in models as much as possible, otherwise we are not providing a true representative of the population we are trying to model. Observations should only be removed if they are extreme, and we have determined that these observations are not extreme.
+
+```{r}
+coef_full <- coef(lm_ocean_full)
+coef_filtered <- coef(lm_ocean_filtered)
+comparison <- data.frame(Full_Model = coef_full, Filtered_Model = coef_filtered)
+print(comparison)
+```
+
+
+# Model Selection
+
+### Visualize all predictors
+
+```{r}
+avPlots(lm_ocean_full)
+```
+
+From these added variable plots, we can see that the only predictor besides temperature that has a notable relationship with the number of species is longitude. In that plot, there is a slight positive correlation between number of species and longitude. This tells us that there is higher biodiversity in the southern parts of the Great Barrier Reef. We can attribute this to rising sea temperatures, as marine animals migrate further south to find cooler environments. This graph also highlights 62, 42, and 32 as outliers, which matches up with our cook's distance plot.
+
+### Formal Plot of Temp and Number of Species
+
+Since this is the only predictor that the summary function determined as significant earlier, it is important that we have a better visualization of what this relationship looks like.
+
 ```{r}
 temp <- ggplot(GBR_dat, aes(x = temperature, y = species)) +
   geom_point(size = 3) +  # dots
@@ -81,23 +315,10 @@ temp <- ggplot(GBR_dat, aes(x = temperature, y = species)) +
   theme_minimal()
 temp
 ```
-## Fitting a Multiple Regression Model
-```{r}
-lm_ocean_full <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
-summary(lm_ocean_full)
-```
 
-## Visualize all predictors
-```{r}
-avPlots(lm_ocean_full)
-```
-From these added variable plots, we can see that the only predictor besides temperature that has a notable relationship with the number of species is longitude. In that plot, there is a slight positive correlation between number of species and longitude. This tells us that there is higher biodiversity in the southern parts of the Great Barrier Reef. This graph also highlights 62, 42, and 32 as outliers, which matches up with our cook's distance plot.
-
-
-## Check Model Assumptions
 ```{r}
 GBR_dat$fit_full <- fitted(lm_ocean_full)
-GBR_dat$fit_red <- fitted(lm_ocean_reduced)
+#GBR_dat$fit_red <- fitted(lm_ocean_reduced)
 
 p1 <- ggplot(GBR_dat, aes(x = species, y = fit_full)) +
 geom_point(color = "steelblue") +
@@ -119,76 +340,17 @@ y = "Fitted num of species"
 ) +
 theme_minimal()
 
-grid.arrange(p1, p2, ncol = 2)
+#grid.arrange(p1, p2, ncol = 2)
 ```
 
 
-```{r}
-par(mfrow = c(2, 2))
-plot(lm_ocean_full)
-par(mfrow = c(1, 1))
-
-```
-```{r}
-shapiro.test(residuals(lm_ocean_full))
-```
-```{r}
-par(mfrow = c(2, 2))
-plot(lm_ocean_full)
-
-```
-
-# Check Homoscedasticity
-```{r}
-plot(fitted(lm_ocean_full), residuals(lm_ocean_full),
-main = "Residuals vs Fitted (Homoscedasticity Check)",
-xlab = "Fitted Values", ylab = "Residuals", pch = 19, col = "blue")
-abline(h = 0, col = "red", lwd = 2)
-```
-
-
-## Check influential points
-```{r}
-influencePlot(lm_ocean_full)
-```
-## Outliers: Check 42, 62, 28, 61
-```{r}
-influential_indices <- c(42, 61, 62, 28)
-GBR_filtered <- GBR_dat[-influential_indices, ]
-lm_ocean_filtered <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_filtered)
-summary(lm_ocean_full)
-summary(lm_ocean_filtered)
-```
-When the influential points are removed from the model, longitude is much more significant
-
-```{r}
-coef_full <- coef(lm_ocean_full)
-coef_filtered <- coef(lm_ocean_filtered)
-comparison <- data.frame(Full_Model = coef_full, Filtered_Model = coef_filtered)
-print(comparison)
-```
-
-
-Cook's distance
-```{r}
-plot(cooks.distance(lm_ocean_full), type = "h",
-main = "Cook's Distance (Influential Points)",
-ylab = "Cook's Distance", col = "darkred")
-##how many SD's away from regression model
-```
-
-## Leverage vs Standardized Residuals
-```{r}
-plot(lm_ocean_full, which = 5)
-```
-
-# Model Selection
+### Model Selection
 ```{r}
 # Null model (only intercept)
 null_model <- lm(species ~ 1, data = GBR_dat)
 
 # Forward selection
-forward_model <- step(null_model, 
+forward_model <- step(null_model,
                       scope = list(lower = null_model, upper = lm_ocean_full),
                       direction = "forward")
 summary(forward_model)
@@ -198,17 +360,19 @@ backward_model <- step(lm_ocean_full, direction = "backward")
 summary(backward_model)
 
 # Stepwise selection (both directions)
-stepwise_model <- step(null_model, 
+stepwise_model <- step(null_model,
                        scope = list(lower = null_model, upper = lm_ocean_full),
                        direction = "both")
 summary(stepwise_model)
 ```
+
+
 ```{r}
 lm_ocean_reduced <- lm(species ~ temperature + Longitude, data = GBR_dat)
 ```
 
 
-## Compare AIC and Adjusted R²
+### Compare AIC and Adjusted R²
 ```{r}
 data.frame(
 Model = c("Reduced", "Full"),
@@ -217,24 +381,12 @@ AIC = c(AIC(lm_ocean_reduced), AIC(lm_ocean_full))
 )
 ```
 
-bpTest
-```{r}
-bptest(lm_ocean_full)
-```
-
-```{r}
-ad.test(lm_ocean_full$residuals)  
-```
-
 ```{r}
 rstandard(lm_ocean_full)
 ```
-## Multicollinearity test
-```{r}
-library(car)
-vif(lm_ocean_full)
-```
-##Cross- Validation
+
+### Cross- Validation
+
 ```{r}
 train_control <- trainControl(
   method = "cv",
@@ -254,12 +406,16 @@ cv_model <- train(
 cv_model
 ```
 
-## Model Selection (anova partial F test)
+### Model Selection (anova partial F test)
 ```{r}
 anova(lm_ocean_full, lm_ocean_reduced)
 ```
 
+
+# Results
+
 # Discussion and Story
+
 investigating location
 from our study, a simple linear regression model would represent our data in the same way
 at which point does our model predict 0 biodiversity?
@@ -268,4 +424,3 @@ gabi will look something up about impacts of biodiversity and maybe give a numbe
 
 mitigation and next steps
 aka what can each person do to prevent sea surface temperature rise
-
