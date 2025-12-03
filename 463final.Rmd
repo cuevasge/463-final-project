@@ -89,6 +89,8 @@ After the data has been cleaned, we are able to move on to the methods of our pr
 ```{r}
 lm_ocean_full <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
 summary(lm_ocean_full)
+sqrt_ocean <- lm(sqrt(species)  ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
+summary(sqrt_ocean)
 ```
 
 Our initial summary indicates that temperature is the only significant predictor (as it is the only predictor value below any reasonable significance level). The other predictor that has a relatively low p-value is longitude, but we will take a closer look into the significant predictors in the future.
@@ -147,7 +149,9 @@ There aren't any glaring obscurities when it comes to observed values deviating 
 
 ```{r}
 par(mfrow = c(2, 2))
-plot(lm_ocean_full)
+plot(lm_ocean_full, which = 2)
+
+plot(sqrt_ocean, which = 2)
 ```
 
 #### *Linearity:*
@@ -164,6 +168,7 @@ On the Scale-Location plot, we can see that on the tails, there is moderate vari
 
 ```{r}
 bptest(lm_ocean_full)
+bptest(sqrt_ocean)
 ```
 
 p-value: 0.6933
@@ -177,6 +182,7 @@ boxCox(lm_ocean_full)
 ```
 
 Since the lambda value is between 0 and 1, we should keep our model for ease of interpretation instead of using a log transformation.
+*****Should we do square root?
 
 #### *Normality:*
 
@@ -184,6 +190,7 @@ Looking at the Q-Q Plot above, there is slight variation at the tails of the plo
 
 ```{r}
 shapiro.test(residuals(lm_ocean_full))
+shapiro.test(residuals(sqrt_ocean))
 ```
 
 The Shapiro-Wilk test indicates that the residuals deviate from normality. We can also perform the Anderson-Darling test for Normality.
@@ -200,6 +207,8 @@ Residuals vs Leverage
 ```{r}
 plot(lm_ocean_full, which = 4)  
 plot(lm_ocean_full, which = 6)  
+plot(sqrt_ocean, which = 4)  
+plot(sqrt_ocean, which = 6)  
 ```
 
 The Cook's Distance plot suggests that observations 28, 62, and 66 are highly influential points.
@@ -245,6 +254,7 @@ The more important test for normality is the Normal Q-Q Plot, which suggests tha
 
 ```{r}
 vif(lm_ocean_full)
+vif(sqrt_ocean)
 ```
 
 All of our predictors have a VIF value below 1.5, which suggests no existence of multicollinearity.
@@ -314,6 +324,7 @@ temp <- ggplot(GBR_dat, aes(x = temperature, y = species)) +
   scale_x_continuous(breaks = seq(min(GBR_dat$temperature), max(GBR_dat$temperature), by = 1))+
   theme_minimal()
 temp
+
 ```
 
 ```{r}
@@ -365,6 +376,26 @@ stepwise_model <- step(null_model,
                        direction = "both")
 summary(stepwise_model)
 ```
+```{r}
+# Null model (only intercept)
+null_model <- lm(sqrt(species) ~ 1, data = GBR_dat)
+
+# Forward selection
+forward_model <- step(null_model,
+                      scope = list(lower = null_model, upper = sqrt_ocean),
+                      direction = "forward")
+summary(forward_model)
+
+# Backward elimination
+backward_model <- step(sqrt_ocean, direction = "backward")
+summary(backward_model)
+
+# Stepwise selection (both directions)
+stepwise_model <- step(null_model,
+                       scope = list(lower = null_model, upper = sqrt_ocean),
+                       direction = "both")
+summary(stepwise_model)
+```
 
 
 ```{r}
@@ -375,9 +406,15 @@ lm_ocean_reduced <- lm(species ~ temperature + Longitude, data = GBR_dat)
 ### Compare AIC and Adjusted R²
 ```{r}
 data.frame(
-Model = c("Reduced", "Full"),
-Adj_R2 = c(summary(lm_ocean_reduced)$adj.r.squared, summary(lm_ocean_full)$adj.r.squared),
-AIC = c(AIC(lm_ocean_reduced), AIC(lm_ocean_full))
+Model = c("sqrt", "Full"),
+Adj_R2 = c(summary(sqrt_ocean)$adj.r.squared, summary(lm_ocean_full)$adj.r.squared),
+AIC = c(AIC(sqrt_ocean), AIC(lm_ocean_full)),
+BIC = c(BIC(sqrt_ocean), BIC(lm_ocean_full))
+)
+data.frame(
+Model = c("sqrt", "Full"),
+Adj_R2 = c(summary(sqrt_ocean)$adj.r.squared, summary(lm_ocean_full)$adj.r.squared),
+AIC = c(AIC(sqrt_ocean), AIC(lm_ocean_full))
 )
 ```
 
@@ -386,7 +423,7 @@ rstandard(lm_ocean_full)
 ```
 
 ### Cross- Validation
-
+********interpret this
 ```{r}
 train_control <- trainControl(
   method = "cv",
@@ -404,11 +441,22 @@ cv_model <- train(
 )
 
 cv_model
+
+# Train the model using 5-fold CV
+cv_model2 <- train(
+  species ~ temperature + Longitude,
+  data = GBR_dat,
+  method = "lm",
+  trControl = train_control,
+  metric = "RMSE"
+)
+
+cv_model2
 ```
 
 ### Model Selection (anova partial F test)
 ```{r}
-anova(lm_ocean_full, lm_ocean_reduced)
+anova(lm_ocean_full, sqrt_ocean)
 ```
 
 
