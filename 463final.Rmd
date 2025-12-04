@@ -45,7 +45,7 @@ Also, we are going to rename the SST column to temperature, eliminate the marine
 
 ```{r}
 clean_dat <- dat %>%
-  select (-Marine.Heatwave) %>%  # remove 2 columns
+  select (-Marine.Heatwave) %>%  
    rename(
      temperature = SST,
      pH = pH.Level,
@@ -89,8 +89,6 @@ After the data has been cleaned, we are able to move on to the methods of our pr
 ```{r}
 lm_ocean_full <- lm(species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
 summary(lm_ocean_full)
-sqrt_ocean <- lm(sqrt(species)  ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
-summary(sqrt_ocean)
 ```
 
 Our initial summary indicates that temperature is the only significant predictor (as it is the only predictor value below any reasonable significance level). The other predictor that has a relatively low p-value is longitude, but we will take a closer look into the significant predictors in the future.
@@ -150,8 +148,6 @@ There aren't any glaring obscurities when it comes to observed values deviating 
 ```{r}
 par(mfrow = c(2, 2))
 plot(lm_ocean_full, which = 2)
-
-plot(sqrt_ocean, which = 2)
 ```
 
 #### *Linearity:*
@@ -168,21 +164,11 @@ On the Scale-Location plot, we can see that on the tails, there is moderate vari
 
 ```{r}
 bptest(lm_ocean_full)
-bptest(sqrt_ocean)
 ```
 
 p-value: 0.6933
 
 Since the p-value is greater than any reasonable significance level, we can conclude that the constant variance assumption remains intact.
-
-We can also look at a box-cox plot to determine whether there is a need for any transformations on the full model.
-
-```{r}
-boxCox(lm_ocean_full)
-```
-
-Since the lambda value is between 0 and 1, we should keep our model for ease of interpretation instead of using a log transformation.
-*****Should we do square root?
 
 #### *Normality:*
 
@@ -190,13 +176,12 @@ Looking at the Q-Q Plot above, there is slight variation at the tails of the plo
 
 ```{r}
 shapiro.test(residuals(lm_ocean_full))
-shapiro.test(residuals(sqrt_ocean))
 ```
 
 The Shapiro-Wilk test indicates that the residuals deviate from normality. We can also perform the Anderson-Darling test for Normality.
 
 ```{r}
-ad.test(lm_ocean_full$residuals)  
+ad.test(lm_ocean_full$residuals)
 ```
 
 The Anderson-Darling normality test suggests that the normality assumption is not being violated. Since we have conflicting tests, we should check for influential points now so we can determine if these are what is causing the lack of normality.
@@ -206,9 +191,7 @@ The Anderson-Darling normality test suggests that the normality assumption is no
 Residuals vs Leverage
 ```{r}
 plot(lm_ocean_full, which = 4)  
-plot(lm_ocean_full, which = 6)  
-plot(sqrt_ocean, which = 4)  
-plot(sqrt_ocean, which = 6)  
+plot(lm_ocean_full, which = 6)
 ```
 
 The Cook's Distance plot suggests that observations 28, 62, and 66 are highly influential points.
@@ -236,7 +219,7 @@ r <- rstudent(lm_ocean_full)
 r
 ```
 
-The observations with the largest studentized residual values: 8, 28, 42, 62, and 66. 
+The observations with the largest studentized residual values: 8, 28, 42, 62, and 66.
 
 All of these observations have studentized residual values above 2, flagging them as possible outliers.
 
@@ -254,7 +237,6 @@ The more important test for normality is the Normal Q-Q Plot, which suggests tha
 
 ```{r}
 vif(lm_ocean_full)
-vif(sqrt_ocean)
 ```
 
 All of our predictors have a VIF value below 1.5, which suggests no existence of multicollinearity.
@@ -299,86 +281,99 @@ print(comparison)
 
 # Model Selection
 
+*Box-Cox Plot*
+
+```{r}
+boxCox(lm_ocean_full)
+```
+
+Since a few assumptions/diagnostics were not entirely convincing, we should look at a box-cox plot to see if a transformation is necessary
+
+```{r}
+boxCox(lm_ocean_full)
+```
+
+The box-cox plot shows that a square root transformation would be beneficial to this dataset.
+
+```{r}
+sqrt_ocean <- lm(sqrt(species)  ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach, data = GBR_dat)
+summary(sqrt_ocean)
+```
+
+
+```{r}
+boxCox(sqrt_ocean)
+```
+
+The transformed data's lambda value is approximately one, which is exactly what we want to see. Let's compare assumptions/diagnostics of the square rooted data compared to the original data.
+
 ### Visualize all predictors
 
 ```{r}
 avPlots(lm_ocean_full)
+avPlots(sqrt_ocean)
 ```
+
+The added variable plots are almost identical between the two models, so any conclusions can be shared between both models.
 
 From these added variable plots, we can see that the only predictor besides temperature that has a notable relationship with the number of species is longitude. In that plot, there is a slight positive correlation between number of species and longitude. This tells us that there is higher biodiversity in the southern parts of the Great Barrier Reef. We can attribute this to rising sea temperatures, as marine animals migrate further south to find cooler environments. This graph also highlights 62, 42, and 32 as outliers, which matches up with our cook's distance plot.
 
-### Formal Plot of Temp and Number of Species
-
-Since this is the only predictor that the summary function determined as significant earlier, it is important that we have a better visualization of what this relationship looks like.
-
 ```{r}
-temp <- ggplot(GBR_dat, aes(x = temperature, y = species)) +
-  geom_point(size = 3) +  # dots
-  geom_smooth(method = "lm", se = FALSE, color = "red") +  # linear regression line
-  labs(
-    title = "Number of Species by Temperature for the Great Barrier Reef",
-    x = "Temperature",
-    y = "Number of Species"
-  ) +
-  ylim(0, 170) +
-  scale_x_continuous(breaks = seq(min(GBR_dat$temperature), max(GBR_dat$temperature), by = 1))+
-  theme_minimal()
-temp
+bptest(lm_ocean_full)
+bptest(sqrt_ocean)
 
+shapiro.test(residuals(lm_ocean_full))
+shapiro.test(residuals(sqrt_ocean))
+
+ad.test(lm_ocean_full$residuals)
+ad.test(sqrt_ocean$residuals)
+
+vif(lm_ocean_full)
+vif(sqrt_ocean)
 ```
 
+All of the test results from the Breusch-Pagan test, Shapiro-Wilk test, Anderson-Darling test, and vif values do not vary enough between models to designate one over another.
+
 ```{r}
-GBR_dat$fit_full <- fitted(lm_ocean_full)
-#GBR_dat$fit_red <- fitted(lm_ocean_reduced)
-
-p1 <- ggplot(GBR_dat, aes(x = species, y = fit_full)) +
-geom_point(color = "steelblue") +
-geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
-labs(
-title = "Full Model: Fitted vs Actual",
-x = "Actual num of species",
-y = "Fitted num of species"
-) +
-theme_minimal()
-
-p2 <- ggplot(GBR_dat, aes(x = species, y = fit_red)) +
-geom_point(color = "darkorange") +
-geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
-labs(
-title = "Reduced Model: Fitted vs Actual",
-x = "Actual num of species",
-y = "Fitted num of species"
-) +
-theme_minimal()
-
-#grid.arrange(p1, p2, ncol = 2)
+influencePlot(lm_ocean_full)
+influencePlot(sqrt_ocean)
 ```
 
+Again, there are very minimal differences between the studentized residuals, hat values, and cook's distance values, so we can keep the same conclusions we drew for the original model.
+
+### Original Data Vs. Transformed Data Assumptions
+
+```{r}
+par(mfrow = c(2, 2))
+plot(lm_ocean_full)
+
+plot(sqrt_ocean)
+```
+
+The diagnostic plots look almost identical, so these can not be used to distinguish between the models.
+
+### Compare AIC and Adjusted R²
+
+One more thing that that can be checked when it comes to comparing the original model compared to the transformed model is the AIC and BIC values of the
+```{r}
+data.frame(
+Model = c("sqrt", "Full"),
+Adj_R2 = c(summary(sqrt_ocean)$adj.r.squared, summary(lm_ocean_full)$adj.r.squared),
+AIC = c(AIC(sqrt_ocean), AIC(lm_ocean_full)),
+BIC = c(BIC(sqrt_ocean), BIC(lm_ocean_full))
+)
+```
+
+Here, we can see that all three of the measurements of goodness of fit indicate that the model fits the transformed data much better.
+
+The AIC and BIC values are the biggest indicator as there is a greater than 3x increase in both AIC and BIC in the full model compared to the transformed model.
+
+For these reasons, we can move forward with the conclusion that the transformed model fits our data better than the original model.
 
 ### Model Selection
 ```{r}
 # Null model (only intercept)
 null_model <- lm(species ~ 1, data = GBR_dat)
-
-# Forward selection
-forward_model <- step(null_model,
-                      scope = list(lower = null_model, upper = lm_ocean_full),
-                      direction = "forward")
-summary(forward_model)
-
-# Backward elimination
-backward_model <- step(lm_ocean_full, direction = "backward")
-summary(backward_model)
-
-# Stepwise selection (both directions)
-stepwise_model <- step(null_model,
-                       scope = list(lower = null_model, upper = lm_ocean_full),
-                       direction = "both")
-summary(stepwise_model)
-```
-```{r}
-# Null model (only intercept)
-null_model <- lm(sqrt(species) ~ 1, data = GBR_dat)
 
 # Forward selection
 forward_model <- step(null_model,
@@ -397,33 +392,65 @@ stepwise_model <- step(null_model,
 summary(stepwise_model)
 ```
 
+All three selection methods choose a method with two predictors:
+
+***Temperature & Longitude***
+
+However, the summary of this model indicates longitude is not a significant predictor. Therefore, further exploration is needed to determine whether the best model includes longitude or not.
 
 ```{r}
-lm_ocean_reduced <- lm(species ~ temperature + Longitude, data = GBR_dat)
+lm_ocean_sqrt_reduced <- lm(sqrt(species) ~ temperature + Longitude, data = GBR_dat)
+lm_ocean_sqrt_temp <- lm(sqrt(species) ~ temperature, data = GBR_dat)
+
+summary(lm_ocean_sqrt_reduced)
+summary(lm_ocean_sqrt_temp)
+
+AIC(lm_ocean_sqrt_reduced)
+AIC(lm_ocean_sqrt_temp)
+
+BIC(lm_ocean_sqrt_reduced)
+BIC(lm_ocean_sqrt_temp)
+
 ```
 
+Model Statistic Comparisions:
 
-### Compare AIC and Adjusted R²
+The adjusted r-squared values are almost identical between the two models (0.4844 and 0.4733) suggesting that the simpler model is the one we should go with.
+
+The F-statistic for the simpler model is almost 2x greater than the F-statistic of the model that includes longitude (41.4  and 78.29). This suggests that the simpler model explains more of the variance compared to the random noise.
+
+There is not a difference in AIC or BIC greater than two between the models, meaning that AIC and BIC both suggest going with the simpler model.
+
+### Final Model Selection
+
+Taking all these statistics into consideration, the decision to go with the simple model seems very self-explainable. We have decided to go against what the model selection functions said to keep the model as simple as possible, while still keeping as much explanation of variability as we can.
+
+So, our final model is made up of only one predictor with a square-root transformation, temperature to predict the number of species in a given area.
+
+# Results
+
+### Interpretation of the summary output
+
 ```{r}
-data.frame(
-Model = c("sqrt", "Full"),
-Adj_R2 = c(summary(sqrt_ocean)$adj.r.squared, summary(lm_ocean_full)$adj.r.squared),
-AIC = c(AIC(sqrt_ocean), AIC(lm_ocean_full)),
-BIC = c(BIC(sqrt_ocean), BIC(lm_ocean_full))
-)
-data.frame(
-Model = c("sqrt", "Full"),
-Adj_R2 = c(summary(sqrt_ocean)$adj.r.squared, summary(lm_ocean_full)$adj.r.squared),
-AIC = c(AIC(sqrt_ocean), AIC(lm_ocean_full))
-)
+final_model <- lm(sqrt(species) ~ temperature, data = GBR_dat)
+summary(final_model)
 ```
 
-```{r}
-rstandard(lm_ocean_full)
-```
+Intercept: 23.73932 - When the temperature is 0 degrees Celsius, the expected biodiversity of a region is 395.419. This intercept by itself does not mean anything because it is outside the scope of our data. The range of temperature values we observed in our data set was from 26.2 to 32.34. Also the range of biodiversity is from 75 to 162.
 
-### Cross- Validation
-********interpret this
+temperature: -0.44636 - For each increase in the log of the temperature (degrees celsius), the expected biodiversity will decrease by -0.44636.
+
+R-Squared: 0.4794 - about 48% of the variation in our data can be described by the temperature (degrees celsius) at that location.
+
+F-Statistic: 78.29 & p-value: 1.097e-13 - These values are significant, meaning that we can reject the null hypothesis that the predictors do not fit the data.
+
+### Further Insights
+
+- As the temperature increases, the expected biodiversity decreases.
+
+ - Our model predicts that at 41.2 degrees celsius, there will be zero biodiversity. This makes sense as the larges observed value of temperature was 32.34 degrees and the lowest observed biodiversity observed was 75, not very close to 0.
+
+### Cross - Validation
 ```{r}
 train_control <- trainControl(
   method = "cv",
@@ -432,43 +459,27 @@ train_control <- trainControl(
 )
 
 # Train the model using 5-fold CV
-cv_model <- train(
-  species ~ temperature + pH + Latitude + Longitude + highBleach + mediumBleach + lowBleach,
+cv_final <- train(
+  species ~ temperature,
   data = GBR_dat,
   method = "lm",
   trControl = train_control,
-  metric = "RMSE"
 )
 
 cv_model
-
-# Train the model using 5-fold CV
-cv_model2 <- train(
-  species ~ temperature + Longitude,
-  data = GBR_dat,
-  method = "lm",
-  trControl = train_control,
-  metric = "RMSE"
-)
-
-cv_model2
 ```
+
+RMSE: 14.06379 - This value reflects the moderate strength predictability our model offers. On average predictions of biodiversity will be off by about 14.
+
+R-Squared: 0.435 - This is very similar to our R-squared we gathered from our observed values, meaning our data is consistent at predicting data from outside the source we fitted from. This is due to us not deciding to overfit the model.
+
+MAE: 11.31606 - This value echoes the same conclusion from RMSE, that our model is not the strongest, but the errors are consistent, and not driven by extremee points.
 
 ### Model Selection (anova partial F test)
 ```{r}
 anova(lm_ocean_full, sqrt_ocean)
 ```
 
-
-# Results
-
 # Discussion and Story
-
-investigating location
-from our study, a simple linear regression model would represent our data in the same way
-at which point does our model predict 0 biodiversity?
-(tipping point)
-gabi will look something up about impacts of biodiversity and maybe give a number of where we need to turn it around by
-
-mitigation and next steps
-aka what can each person do to prevent sea surface temperature rise
+From our study, a simple linear regression model with temperature and longitude would represent our data in the same way as our full model. Temperature was the only significant predictor of marine biodiversity. Sea surface temperature increases as a result of greenhouse gases such as carbon dioxide and methane in the atmosphere. We can use studies like these to predict how climate mitigation can slow down biodiversity loss over time. Current research has determined that if we are able to keep global temperatures below 2 degrees celcius until 2100, we can slow dramatic oceanic environmental changes enough for coral reefs to recover and maintain their biodiversity levels. Global temperatures have increased by about 1 degree C in the past 20 years, and our current global temperature is 1.33 degrees celsius above pre-industrial temperatures. This means we must take significant measures to slow global temperature increase through reducing carbon emissions, fossil fuel usage, and preventing deforestation. 
+** investigate location
