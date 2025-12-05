@@ -1,5 +1,5 @@
 ---
-title: "Final Project"
+title: "Final Project - Biodiversity in the Great Barrier Reef"
 author: "Gabriela Cuevas & Max Baumstark"
 date: "2025-11-10"
 output: html_document
@@ -42,6 +42,8 @@ Before cleaning our data, we have exactly 500 observations observed over many di
 To better understand our dataset, we want to specifically look at the Great Barrier Reef.
 
 Also, we are going to rename the SST column to temperature, eliminate the marine heatwave predictor, and eliminate any null observations.
+
+We also want to mention that latitude and longitude are constrained to the general region of the GBR, so they are discrete variables.
 
 ```{r}
 clean_dat <- dat %>%
@@ -147,12 +149,12 @@ There aren't any glaring obscurities when it comes to observed values deviating 
 
 ```{r}
 par(mfrow = c(2, 2))
-plot(lm_ocean_full, which = 2)
+plot(lm_ocean_full)
 ```
 
 #### *Linearity:*
 
-The linearity assumptions does not appear to be violated as the vertical scatter of points in the residuals vs. fitted plot seems to be random scattered around zero.
+The linearity assumption does not appear to be violated as the vertical scatter of points in the residuals vs. fitted plot seems to be random scattered around zero.
 
 #### *Independence of Errors:*
 
@@ -243,7 +245,7 @@ All of our predictors have a VIF value below 1.5, which suggests no existence of
 
 #### *No Important Predictors Omitted:*
 
-****************Fill*****************
+The predictor that we removed was Marine Heatwave. We removed this due to a lack of observations that were indicated as being during a marine heatwave, and to avoid multicollinearity with the temperature predictor.
 
 #### *Possible Lack-of-Fit:*
 
@@ -283,10 +285,6 @@ print(comparison)
 
 *Box-Cox Plot*
 
-```{r}
-boxCox(lm_ocean_full)
-```
-
 Since a few assumptions/diagnostics were not entirely convincing, we should look at a box-cox plot to see if a transformation is necessary
 
 ```{r}
@@ -316,7 +314,7 @@ avPlots(sqrt_ocean)
 
 The added variable plots are almost identical between the two models, so any conclusions can be shared between both models.
 
-From these added variable plots, we can see that the only predictor besides temperature that has a notable relationship with the number of species is longitude. In that plot, there is a slight positive correlation between number of species and longitude. This tells us that there is higher biodiversity in the southern parts of the Great Barrier Reef. We can attribute this to rising sea temperatures, as marine animals migrate further south to find cooler environments. This graph also highlights 62, 42, and 32 as outliers, which matches up with our cook's distance plot.
+From these added variable plots, we can see that the only predictor besides temperature that has a notable relationship with the number of species is longitude. In that plot, there is a slight positive correlation between number of species and longitude. This tells us that there is higher biodiversity in the northern parts of the Great Barrier Reef. This graph also highlights 62, 42, and 32 as outliers, which matches up with our cook's distance plot.
 
 ```{r}
 bptest(lm_ocean_full)
@@ -421,9 +419,16 @@ The F-statistic for the simpler model is almost 2x greater than the F-statistic 
 
 There is not a difference in AIC or BIC greater than two between the models, meaning that AIC and BIC both suggest going with the simpler model.
 
+### Partial F-Test
+```{r}
+anova(lm_ocean_sqrt_reduced, lm_ocean_sqrt_temp)
+```
+
+Our partial F-Test indicates that we lack sufficient evidence to reject the null hypothesis we have a p-value greater than 0.05. This test indicates that there is not a significant difference between the models, and that the simpler model should be selected to avoid over-fitting.
+
 ### Final Model Selection
 
-Taking all these statistics into consideration, the decision to go with the simple model seems very self-explainable. We have decided to go against what the model selection functions said to keep the model as simple as possible, while still keeping as much explanation of variability as we can.
+Taking all these statistics into consideration, the decision to go with the simple model seems very self-explanatory. We have decided to go against what the model selection functions said to keep the model as simple as possible, while still keeping as much explanation of variability as we can.
 
 So, our final model is made up of only one predictor with a square-root transformation, temperature to predict the number of species in a given area.
 
@@ -438,7 +443,7 @@ summary(final_model)
 
 Intercept: 23.73932 - When the temperature is 0 degrees Celsius, the expected biodiversity of a region is 395.419. This intercept by itself does not mean anything because it is outside the scope of our data. The range of temperature values we observed in our data set was from 26.2 to 32.34. Also the range of biodiversity is from 75 to 162.
 
-temperature: -0.44636 - For each increase in the log of the temperature (degrees celsius), the expected biodiversity will decrease by -0.44636.
+temperature: -0.44636 - For each increase in the square root of the temperature (degrees celsius), the expected biodiversity will decrease by -0.44636.
 
 R-Squared: 0.4794 - about 48% of the variation in our data can be described by the temperature (degrees celsius) at that location.
 
@@ -446,7 +451,25 @@ F-Statistic: 78.29 & p-value: 1.097e-13 - These values are significant, meaning 
 
 ### Further Insights
 
+## Plot Temp against Number of Species
+```{r}
+temp <- ggplot(GBR_dat, aes(x = temperature, y = species)) +
+  geom_point(size = 3) +  # dots
+  geom_smooth(method = "lm", se = FALSE, color = "red") +  # linear regression line
+  labs(
+    title = "Number of Species by Temperature for the Great Barrier Reef",
+    x = "Temperature",
+    y = "Number of Species"
+  ) +
+  ylim(0, 170) +
+  scale_x_continuous(breaks = seq(min(GBR_dat$temperature), max(GBR_dat$temperature), by = 1))+
+  theme_minimal()
+temp
+```
+
+
 - As the temperature increases, the expected biodiversity decreases.
+- This plot is visualized on our original scale.
 
  - Our model predicts that at 41.2 degrees celsius, there will be zero biodiversity. This makes sense as the larges observed value of temperature was 32.34 degrees and the lowest observed biodiversity observed was 75, not very close to 0.
 
@@ -466,20 +489,31 @@ cv_final <- train(
   trControl = train_control,
 )
 
-cv_model
+cv_final
 ```
 
 RMSE: 14.06379 - This value reflects the moderate strength predictability our model offers. On average predictions of biodiversity will be off by about 14.
 
 R-Squared: 0.435 - This is very similar to our R-squared we gathered from our observed values, meaning our data is consistent at predicting data from outside the source we fitted from. This is due to us not deciding to overfit the model.
 
-MAE: 11.31606 - This value echoes the same conclusion from RMSE, that our model is not the strongest, but the errors are consistent, and not driven by extremee points.
-
-### Model Selection (anova partial F test)
-```{r}
-anova(lm_ocean_full, sqrt_ocean)
-```
+MAE: 11.31606 - This value echoes the same conclusion from RMSE, that our model is not the strongest, but the errors are consistent, and not driven by extreme points.
 
 # Discussion and Story
-From our study, a simple linear regression model with temperature and longitude would represent our data in the same way as our full model. Temperature was the only significant predictor of marine biodiversity. Sea surface temperature increases as a result of greenhouse gases such as carbon dioxide and methane in the atmosphere. We can use studies like these to predict how climate mitigation can slow down biodiversity loss over time. Current research has determined that if we are able to keep global temperatures below 2 degrees celcius until 2100, we can slow dramatic oceanic environmental changes enough for coral reefs to recover and maintain their biodiversity levels. Global temperatures have increased by about 1 degree C in the past 20 years, and our current global temperature is 1.33 degrees celsius above pre-industrial temperatures. This means we must take significant measures to slow global temperature increase through reducing carbon emissions, fossil fuel usage, and preventing deforestation. 
-** investigate location
+
+From our study, a simple linear regression model with temperature and longitude would represent our data in the same way as our full model. Temperature was the only significant predictor of marine biodiversity. Sea surface temperature increases as a result of greenhouse gases such as carbon dioxide and methane in the atmosphere. We can use studies like these to predict how climate mitigation can slow down biodiversity loss. Current research has determined that if we are able to keep global temperatures below 2 degrees Celsius until 2100, we can slow dramatic oceanic environmental changes enough for coral reefs to recover and maintain their biodiversity levels. Global temperatures have increased by about 1 degree C in the past 20 years, and our current global temperature is 1.33 degrees C above pre-industrial temperatures. This means we must take significant measures to slow global temperature increase through reducing carbon emissions, fossil fuel usage, and preventing deforestation. In future studies, we would like to take a closer look at longitude to see if trends in species distribution differ more drastically in regions closer to or further from the equator.
+
+
+## Sources
+### Dataset
+"Shifting Seas: Ocean Climate & Marine Life Dataset". Kaggle, 2025. https://www.kaggle.com/datasets/atharvasoundankar/shifting-seas-ocean-climate-and-marine-life-dataset/data
+
+### Other Research Sources
+
+“1.5°C: What It Means and Why It Matters.” United Nations, United Nations, www.un.org/en/climatechange/science/climate-issues/degrees-matter.  Accessed 5 Dec. 2025. 
+
+Ceccarelli, Daniela. M., et al. “Regional-Scale Disturbances Drive Long-Term Decline of Inshore Coral Reef Fish Assemblages in the Great Barrier Reef Marine Park.” Global Change Biology, 14 Oct. 2024, doi.org/10.1111/gcb.17506.  
+
+“Global Temperature - Earth Indicator - NASA Science.” NASA, NASA, 26 Sept. 2025, science.nasa.gov/earth/explore/earth-indicators/global-temperature/.  
+
+## Use of AI Tools
+We used AI tools to help us double check code when creating data frames and to help create our code for removing influential points from the dataset.
